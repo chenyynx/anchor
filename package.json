@@ -1,0 +1,37 @@
+{
+  "name": "anchor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Anchor — remote control plane agent for Hako clients (daemon + MCP shell)",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "bin": {
+    "anchor": "./src/cli.ts"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "test": "tsx --test --test-concurrency=1 test/*.test.ts",
+    "contract": "tsx --test test/contract.test.ts",
+    "mock-phone": "tsx tools/mock-phone.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "workspaces": [
+    "packages/hako-protocol"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "qrcode": "^1.5.4",
+    "ws": "^8.22.0"
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

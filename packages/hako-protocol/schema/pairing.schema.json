@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hako.dev/schema/v1/pairing.schema.json",
+  "title": "Hako pairing payloads",
+  "description": "配对口令 URL 格式 + Noise_XX 载荷内 pair.req / pair.res / pair.done。所有载荷在 Noise 加密信道内传输。",
+  "$defs": {
+    "pairingURI": {
+      "type": "string",
+      "description": "二维码内容 = 可粘贴口令。约 200-260 字符，二维码 M 级纠错可稳定扫描。",
+      "pattern": "^hako://pair\\?v=1&k=[A-Za-z0-9_-]{43}&s=[A-Za-z0-9_-]{22}&e=[^&]+(&n=[^&]*)?(&x=\\d+)?$",
+      "examples": [
+        "hako://pair?v=1&k=VKxQe3sT7YpLm2NfA9dGhJ4kWcZ8bR1uXoT6yE5mN0&s=Zm9xYmFyMTIzNDU2Nzg5MGFiY2RlZg&e=lan:192.168.1.20:8787,wss%3A%2F%2Fhako.example.com%2Fws&n=MacBook%20Pro&x=1790000000"
+      ]
+    },
+    "pairReq": {
+      "type": "object",
+      "required": ["device", "roles", "caps"],
+      "additionalProperties": false,
+      "properties": {
+        "secret": {
+          "type": "string",
+          "description": "一次性口令。QR/粘贴路径必填；Bonjour 路径为空（改用 SAS 确认码）"
+        },
+        "device": {
+          "type": "object",
+          "required": ["id", "name"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string", "pattern": "^dev_[0-9A-Z]{16}$" },
+            "name": { "type": "string", "maxLength": 64 },
+            "model": { "type": "string" },
+            "os": { "type": "string" },
+            "app_ver": { "type": "string" },
+            "locale": { "type": "string" }
+          }
+        },
+        "roles": {
+          "type": "array",
+          "items": { "enum": ["app", "ext"] },
+          "description": "本机支持的通道。Bonjour/静默场景可能只有 app"
+        },
+        "push": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "用于后台唤醒。无推送能力则省略整个字段",
+          "properties": {
+            "apns_token": { "type": "string" },
+            "env": { "enum": ["prod", "sandbox"] },
+            "topic": { "type": "string", "description": "App bundle id" }
+          }
+        },
+        "caps": {
+          "type": "object",
+          "description": "各连接器支持的 op 清单与协议小版本，用于能力协商",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "pairRes": {
+      "type": "object",
+      "required": ["status", "controller", "scopes"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["accepted", "need_confirm", "rejected"] },
+        "device_alias": { "type": "string", "maxLength": 64 },
+        "controller": {
+          "type": "boolean",
+          "description": "本次配对的 agent 是否成为主控。首个配对成功的自动成为主控"
+        },
+        "scopes": {
+          "enum": ["observe", "operate", "manage"],
+          "default": "manage"
+        },
+        "agent": {
+          "type": "object",
+          "required": ["id", "proto"],
+          "properties": {
+            "id": { "type": "string", "pattern": "^[0-9A-Z]{16}$" },
+            "name": { "type": "string" },
+            "version": { "type": "string" },
+            "proto": { "type": "array", "items": { "type": "integer" } }
+          }
+        },
+        "reason": { "type": "string", "description": "rejected 时的原因" }
+      }
+    },
+    "sas": {
+      "type": "object",
+      "description": "确认码流程。Bonjour 路径强制；中继/公网路径默认启用。",
+      "required": ["code"],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[0-9]{6}$",
+          "description": "HKDF(handshake_hash, 'hako-sas') mod 10^6，双端各自算出同一值供人眼比对"
+        },
+        "expires_at": { "type": "integer", "description": "unix 秒，默认 now+120" }
+      }
+    },
+    "hello": {
+      "type": "object",
+      "description": "Noise_IK 日常会话首帧（app 或 ext 发出）",
+      "required": ["role", "dev_id", "proto", "caps"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "enum": ["app", "ext"] },
+        "dev_id": { "type": "string", "pattern": "^dev_[0-9A-Z]{16}$" },
+        "proto": { "type": "array", "items": { "type": "integer" } },
+        "caps": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
+        "session_epoch": {
+          "type": "integer",
+          "description": "仅 ext：隧道/内核重载代数，用于 STALE_EPOCH 判定"
+        },
+        "resume": {
+          "type": "object",
+          "description": "断点续传：agent 据此补发未确认未过期的命令",
+          "additionalProperties": false,
+          "properties": {
+            "last_rx_seq": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "state_digest": {
+          "type": "string",
+          "description": "状态摘要。不一致时 agent 主动拉 state.get 对账"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "role": { "const": "ext" } }, "required": ["role"] },
+          "then": {
+            "required": ["session_epoch"],
+            "description": "内核重载代数是 ext 的关键前置条件，缺失将无法判定 STALE_EPOCH"
+          }
+        }
+      ]
+    },
+    "helloRes": {
+      "type": "object",
+      "required": ["ok"],
+      "additionalProperties": false,
+      "properties": {
+        "ok": { "type": "boolean" },
+        "controller": { "type": "boolean", "description": "当前主控状态" },
+        "scopes": { "enum": ["observe", "operate", "manage"] },
+        "pending": { "type": "integer", "description": "待补发命令数" },
+        "agent_id": { "type": "string" },
+        "degraded": {
+          "type": ["object", "null"],
+          "description": "F 完整时为 null；否则带 level 与 reason",
+          "additionalProperties": false,
+          "properties": {
+            "level": { "enum": ["F", "A", "S", "O"] },
+            "reason": { "type": "string" },
+            "next": { "type": "string", "description": "可直接执行的下一步" }
+          }
+        },
+        "reason": { "type": "string", "description": "auth.fail 时的 code" }
+      }
+    }
+  }
+}

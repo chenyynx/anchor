@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hako.dev/schema/v1/envelope.schema.json",
+  "title": "Hako agent wire envelope",
+  "description": "每条应用消息一个 UTF-8 JSON 帧，封装在 Noise 传输消息内。单帧 <= 64KB。接收方忽略未知字段；仅破坏性变更升主版本。",
+  "type": "object",
+  "required": ["v", "t", "id"],
+  "additionalProperties": true,
+  "properties": {
+    "v": {
+      "const": 1,
+      "description": "协议主版本"
+    },
+    "t": {
+      "enum": ["cmd", "res", "ack", "evt", "ping", "pong", "bye"],
+      "description": "帧类型"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "ULID，命令与事件唯一标识"
+    },
+    "ref": {
+      "type": "string",
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "res/ack 所引用的命令 id"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "发送方每通道单调递增序号，用于断点续传与对账"
+    },
+    "ch": {
+      "enum": ["app", "ext"],
+      "description": "通道：app=App 连接器，ext=Extension 连接器"
+    },
+    "op": {
+      "type": "string",
+      "pattern": "^(app|core|device|evt|device)\\.[a-z0-9_.]+$",
+      "description": "命令名或事件名。app.*→AC，core.*→EC，device.*→任一在线者，evt.*→事件"
+    },
+    "args": {
+      "type": "object",
+      "description": "cmd 的参数"
+    },
+    "data": {
+      "type": "object",
+      "description": "res 的结果或 evt 的载荷"
+    },
+    "ttl_ms": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 600000,
+      "default": 30000,
+      "description": "命令有效期。以接收方单调时钟 + 到达时间判断，不信任对端时间戳"
+    },
+    "idem": {
+      "type": "string",
+      "description": "幂等键，缺省等于 id。接收方保留最近 256 条 / 10 分钟的去重表"
+    },
+    "if": {
+      "type": "object",
+      "description": "前置条件。不符则返回 STALE_REV / STALE_EPOCH",
+      "additionalProperties": false,
+      "properties": {
+        "rev": { "type": "integer", "minimum": 0 },
+        "epoch": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "ok": {
+      "type": "boolean",
+      "description": "res 专用：命令是否成功"
+    },
+    "status": {
+      "enum": ["applied", "deferred", "rejected"],
+      "description": "res 专用。deferred = 已持久化，隧道启动后生效，≠ 已生效"
+    },
+    "err": {
+      "$ref": "#/$defs/error"
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "结果元信息",
+      "properties": {
+        "rev": {
+          "type": "integer",
+          "description": "配置修订号，由 AC 维护，每次变更 +1"
+        },
+        "epoch": {
+          "type": "integer",
+          "description": "隧道/内核重载代数，EC 维护，每次 +1"
+        },
+        "as_of": {
+          "type": "integer",
+          "description": "缓存数据的 unix 秒，降级返回时必带"
+        },
+        "stale": {
+          "type": "boolean",
+          "description": "数据是否已过期（降级读时为 true）"
+        },
+        "channel": { "enum": ["app", "ext"] }
+      }
+    },
+    "reason": {
+      "type": "string",
+      "description": "bye 的原因码，如 suspend / tunnel_stop / unpaired / rotate"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "t": { "const": "res" } }, "required": ["t"] },
+      "then": { "required": ["ref", "ok", "status"] }
+    },
+    {
+      "if": { "properties": { "t": { "const": "ack" } }, "required": ["t"] },
+      "then": { "required": ["ref"] }
+    },
+    {
+      "if": { "properties": { "t": { "const": "cmd" } }, "required": ["t"] },
+      "then": { "required": ["op", "ch"] }
+    }
+  ],
+  "$defs": {
+    "error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "DEVICE_REQUIRED", "DEVICE_OFFLINE", "APP_SUSPENDED",
+            "TUNNEL_DOWN", "TUNNEL_STARTING", "TUNNEL_STOPPED",
+            "NEED_USER_ACTION", "SCOPE_DENIED", "NOT_CONTROLLER",
+            "STALE_REV", "STALE_EPOCH", "USER_RECENT_CHANGE",
+            "INVALID_ARGUMENT", "NOT_FOUND", "UNSUPPORTED",
+            "CONFLICT_BUSY", "TIMEOUT_UNKNOWN", "CORE_ERROR",
+            "RATE_LIMITED", "EXPIRED",
+            "PAIR_KEY_MISMATCH", "UNKNOWN_DEVICE", "REVOKED", "KEY_MISMATCH"
+          ]
+        },
+        "message": { "type": "string", "maxLength": 512 },
+        "retryable": { "type": "boolean", "default": false },
+        "hint": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "给 agent 的下一步建议，如「先调用 hako_vpn{action:on}」"
+        },
+        "action": {
+          "type": "string",
+          "description": "NEED_USER_ACTION 时：vpn_permission / open_app / local_network / camera"
+        }
+      }
+    }
+  }
+}

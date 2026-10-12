@@ -1,0 +1,189 @@
+{
+  "$comment": "Hako agent wire protocol v1 — shared test vectors. Consumed by BOTH the TypeScript agent (Ajv) and the Swift client (HakoAgentKit). Any change here is a protocol change and must bump the schema version.",
+  "version": 1,
+  "vectors": {
+    "envelopeValid": [
+      {
+        "name": "cmd_core.proxy.select",
+        "note": "Extension 通道切节点，目标态幂等，带 epoch 前置条件",
+        "data": {
+          "v": 1, "t": "cmd", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B2C",
+          "seq": 118, "ch": "ext", "op": "core.proxy.select",
+          "args": { "group": "Proxy", "node": "HK-02" },
+          "ttl_ms": 15000, "idem": "01J9ZK3Q8M2XTR4QK7YF0A1B2C",
+          "if": { "epoch": 7 }
+        }
+      },
+      {
+        "name": "ack",
+        "data": {
+          "v": 1, "t": "ack", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B2D",
+          "ref": "01J9ZK3Q8M2XTR4QK7YF0A1B2C", "ch": "ext"
+        }
+      },
+      {
+        "name": "res_applied",
+        "data": {
+          "v": 1, "t": "res", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B2E",
+          "ref": "01J9ZK3Q8M2XTR4QK7YF0A1B2C", "ch": "ext",
+          "ok": true, "status": "applied",
+          "data": { "group": "Proxy", "node": "HK-02", "previous": "JP-01" },
+          "meta": { "epoch": 7, "rev": 42 }
+        }
+      },
+      {
+        "name": "res_deferred",
+        "note": "隧道关闭时的写操作：已持久化，下次隧道启动生效，≠ 已生效",
+        "data": {
+          "v": 1, "t": "res", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B2F",
+          "ref": "01J9ZK3Q8M2XTR4QK7YF0A1B20", "ch": "app",
+          "ok": true, "status": "deferred",
+          "data": { "mode": "global", "previous": "rule" },
+          "meta": { "rev": 43, "stale": true, "channel": "app" }
+        }
+      },
+      {
+        "name": "res_rejected_stale_epoch",
+        "data": {
+          "v": 1, "t": "res", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B30",
+          "ref": "01J9ZK3Q8M2XTR4QK7YF0A1B21", "ch": "ext",
+          "ok": false, "status": "rejected",
+          "err": { "code": "STALE_EPOCH", "message": "内核已重载，epoch 不符", "retryable": false, "hint": "重新读取 core.state.get 后再提交" },
+          "meta": { "epoch": 8 }
+        }
+      },
+      {
+        "name": "evt_vpn_on_demand",
+        "data": {
+          "v": 1, "t": "evt", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B40",
+          "seq": 7, "ch": "ext", "op": "evt.vpn",
+          "data": { "status": "connected", "reason": "on_demand", "epoch": 8 }
+        }
+      },
+      {
+        "name": "ping",
+        "data": { "v": 1, "t": "ping", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B50", "ch": "app" }
+      },
+      {
+        "name": "bye_suspend",
+        "note": "App 进入后台挂起前尽力发出；agent 据此区分休眠与离线",
+        "data": { "v": 1, "t": "bye", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B60", "ch": "app", "reason": "suspend" }
+      },
+      {
+        "name": "res_need_user_action",
+        "data": {
+          "v": 1, "t": "res", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B70",
+          "ref": "01J9ZK3Q8M2XTR4QK7YF0A1B22", "ch": "app",
+          "ok": false, "status": "rejected",
+          "err": { "code": "NEED_USER_ACTION", "message": "需要用户允许 VPN 配置", "retryable": false, "action": "vpn_permission" }
+        }
+      }
+    ],
+    "envelopeInvalid": [
+      { "name": "缺 op 的 cmd", "data": { "v": 1, "t": "cmd", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B2C", "ch": "app" } },
+      { "name": "缺 ch 的 cmd", "data": { "v": 1, "t": "cmd", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B2C", "op": "app.state.get" } },
+      { "name": "res 缺 status", "data": { "v": 1, "t": "res", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B2E", "ref": "01J9ZK3Q8M2XTR4QK7YF0A1B2C", "ch": "ext", "ok": true } },
+      { "name": "非法 status 值", "data": { "v": 1, "t": "res", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B2E", "ref": "01J9ZK3Q8M2XTR4QK7YF0A1B2C", "ch": "ext", "ok": true, "status": "maybe" } },
+      { "name": "非法 id（非 ULID）", "data": { "v": 1, "t": "ping", "id": "not-a-ulid" } },
+      { "name": "未知错误码", "data": { "v": 1, "t": "res", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B2E", "ref": "01J9ZK3Q8M2XTR4QK7YF0A1B2C", "ch": "ext", "ok": false, "status": "rejected", "err": { "code": "WAT", "message": "x" } } },
+      { "name": "未知 t", "data": { "v": 1, "t": "gossip", "id": "01J9ZK3Q8M2XTR4QK7YF0A1B2C" } }
+    ],
+    "pairing": {
+      "uriValid": [
+        "hako://pair?v=1&k=mGj0j2z3EDFG9ZaVS2iKIT-gkgq_LtXN6A4dms4uS3k&s=D8Ss2laXFoRmIOr4hQwcsg&e=lan:192.168.1.20:8787,wss%3A%2F%2Fhako.example.com%2Fws&n=MacBook%20Pro&x=1790000000"
+      ],
+      "uriInvalid": [
+        "http://evil.example.com/pair",
+        "hako://pair?v=1&k=tooshort&s=alsoshort",
+        "hako://pair?v=2&k=mGj0j2z3EDFG9ZaVS2iKIT-gkgq_LtXN6A4dms4uS3k&s=D8Ss2laXFoRmIOr4hQwcsg&e=lan:1.2.3.4:1",
+        "hako://pair?v=1&k=mGj0j2z3EDFG9ZaVS2iKIT-gkgq_LtXN6A4dms4uS3k&s=D8Ss2laXFoRmIOr4hQwcsg"
+      ],
+      "pairReqValid": {
+        "secret": "Zm9xYmFyMTIzNDU2Nzg5MGFiY2RlZg",
+        "device": { "id": "dev_7K2M9PQR4TNXV8BC", "name": "我的 iPhone", "model": "iPhone17,2", "os": "26.1", "app_ver": "1.0.0", "locale": "zh-Hans" },
+        "roles": ["app", "ext"],
+        "push": { "apns_token": "a1b2c3", "env": "prod", "topic": "com.hako.client" },
+        "caps": { "app": ["app.state.get", "app.vpn.start"], "ext": ["core.proxy.select", "core.mode.set"] }
+      },
+      "pairReqBonjour": {
+        "note": "Bonjour 路径无预共享信息，secret 为空，改用 SAS 确认码",
+        "device": { "id": "dev_7K2M9PQR4TNXV8BC", "name": "我的 iPhone" },
+        "roles": ["app"],
+        "caps": { "app": ["app.state.get"] }
+      },
+      "pairResAccepted": {
+        "status": "accepted", "controller": true, "scopes": "manage",
+        "device_alias": "我的 iPhone",
+        "agent": { "id": "4TNXV8BCVKXQE3SD", "name": "MacBook Pro", "version": "0.1.0", "proto": [1] }
+      },
+      "pairResNeedConfirm": {
+        "status": "need_confirm", "controller": true, "scopes": "manage",
+        "agent": { "id": "4TNXV8BCVKXQE3SD", "name": "MacBook Pro", "version": "0.1.0", "proto": [1] }
+      },
+      "sas": { "code": "482917", "expires_at": 1790000120 },
+      "helloApp": {
+        "role": "app", "dev_id": "dev_7K2M9PQR4TNXV8BC", "proto": [1],
+        "caps": { "app": ["app.state.get", "app.vpn.start", "app.profile.list"] },
+        "resume": { "last_rx_seq": 118 },
+        "state_digest": "9f2b1c8e4a7d0355"
+      },
+      "helloExt": {
+        "role": "ext", "dev_id": "dev_7K2M9PQR4TNXV8BC", "proto": [1],
+        "caps": { "ext": ["core.proxy.list", "core.proxy.select", "core.mode.set"] },
+        "session_epoch": 7,
+        "resume": { "last_rx_seq": 42 },
+        "state_digest": "1a2b3c4d5e6f7081"
+      },
+      "helloResOk": {
+        "ok": true, "controller": true, "scopes": "manage", "pending": 0,
+        "agent_id": "4TNXV8BCVKXQE3SD", "degraded": null
+      },
+      "helloResDegradedA": {
+        "note": "隧道关闭：能力降级为 A，仅 App 层可用",
+        "ok": true, "controller": true, "scopes": "manage", "pending": 1,
+        "agent_id": "4TNXV8BCVKXQE3SD",
+        "degraded": { "level": "A", "reason": "tunnel_down", "next": "调用 hako_vpn{action:on}" }
+      },
+      "helloResRevoked": { "ok": false, "reason": "REVOKED" }
+    },
+    "opsValid": [
+      { "ch": "app", "op": "app.state.get", "args": {} },
+      { "ch": "app", "op": "app.vpn.start", "args": { "reason": "agent requested" } },
+      { "ch": "app", "op": "app.profile.add", "args": { "url": "https://example.com/sub", "name": "我的订阅", "auto_update_hours": 24 } },
+      { "ch": "app", "op": "app.profile.list", "args": { "limit": 50 } },
+      { "ch": "app", "op": "app.profile.select", "args": { "id": "p_1" } },
+      { "ch": "app", "op": "app.profile.refresh", "args": { "id": "p_1" } },
+      { "ch": "app", "op": "app.config.get", "args": { "section": "all" } },
+      { "ch": "app", "op": "app.config.patch", "args": { "base_rev": 42, "patch": { "mode": "global" }, "dry_run": true } },
+      { "ch": "app", "op": "app.config.apply", "args": { "rev": 43, "confirm_within_s": 60 } },
+      { "ch": "app", "op": "app.pref.set", "args": { "mode": "rule" } },
+      { "ch": "app", "op": "app.audit.tail", "args": { "n": 20 } },
+      { "ch": "ext", "op": "core.state.get", "args": {} },
+      { "ch": "ext", "op": "core.proxy.list", "args": { "with_latency": true, "limit": 50 } },
+      { "ch": "ext", "op": "core.proxy.select", "args": { "group": "Proxy", "node": "HK-02" } },
+      { "ch": "ext", "op": "core.proxy.delay", "args": { "targets": ["HK-01", "HK-02"], "timeout_ms": 5000 } },
+      { "ch": "ext", "op": "core.mode.set", "args": { "mode": "global" } },
+      { "ch": "ext", "op": "core.conn.list", "args": { "filter": { "host": "example.com" }, "limit": 20 } },
+      { "ch": "ext", "op": "core.conn.close", "args": { "all": true } },
+      { "ch": "ext", "op": "core.probe", "args": { "urls": ["https://ifconfig.me/ip"] } },
+      { "ch": "ext", "op": "core.config.reload", "args": { "rev": 43 } }
+    ],
+    "opsInvalid": [
+      { "ch": "app", "op": "app.config.patch", "args": { "patch": {} }, "why": "缺 base_rev" },
+      { "ch": "app", "op": "app.profile.add", "args": {}, "why": "缺 url" },
+      { "ch": "ext", "op": "core.mode.set", "args": { "mode": "turbo" }, "why": "非法 mode" },
+      { "ch": "ext", "op": "core.proxy.select", "args": { "group": "Proxy" }, "why": "缺 node" },
+      { "ch": "ext", "op": "core.proxy.delay", "args": { "targets": [], "timeout_ms": 5000 }, "why": "空 targets" },
+      { "ch": "ext", "op": "core.proxy.delay", "args": { "targets": ["a"], "timeout_ms": 99999 }, "why": "timeout 越界" },
+      { "ch": "app", "op": "app.nonexistent", "args": {}, "why": "未知 op" }
+    ],
+    "routing": [
+      { "op": "app.state.get", "expectCh": "app" },
+      { "op": "app.vpn.stop", "expectCh": "app" },
+      { "op": "app.config.apply", "expectCh": "app" },
+      { "op": "core.proxy.select", "expectCh": "ext" },
+      { "op": "core.mode.set", "expectCh": "ext" },
+      { "op": "core.probe", "expectCh": "ext" }
+    ]
+  }
+}

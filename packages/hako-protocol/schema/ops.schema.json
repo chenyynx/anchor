@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hako.dev/schema/v1/ops.schema.json",
+  "title": "Hako agent operations",
+  "description": "App 连接器(app.*)与 Extension 连接器(core.*)的命令集。命名空间前缀决定路由通道。跨进程编排由设备侧内部完成，agent 只需发一条命令。",
+  "$defs": {
+    "appOps": {
+      "type": "object",
+      "description": "AC 命令。不依赖隧道，App 在线即可执行",
+      "additionalProperties": false,
+      "properties": {
+        "app.state.get": {
+          "type": "object",
+          "properties": {
+            "vpn": {
+              "type": "object",
+              "properties": {
+                "status": { "enum": ["connected", "connecting", "disconnected", "reasserting", "invalid"] },
+                "stop_reason": { "enum": ["user", "agent", "system", "crash", "on_demand"] },
+                "on_demand": { "type": "boolean" }
+              }
+            },
+            "active_profile": { "type": ["string", "null"] },
+            "cfg_rev": { "type": "integer" },
+            "scopes": { "enum": ["observe", "operate", "manage"] },
+            "controller": { "type": "boolean" }
+          }
+        },
+        "app.vpn.start": {
+          "type": "object",
+          "description": "目标态语义，幂等。首次未授权返回 NEED_USER_ACTION{vpn_permission}",
+          "properties": { "reason": { "type": "string", "maxLength": 128 } }
+        },
+        "app.vpn.stop": { "type": "object", "properties": {} },
+        "app.profile.list": {
+          "type": "object",
+          "properties": {
+            "cursor": { "type": ["string", "null"] },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+          }
+        },
+        "app.profile.add": {
+          "type": "object",
+          "description": "以规范化 URL 去重；已存在返回已有 id 与 existed:true。URL 不回显",
+          "required": ["url"],
+          "properties": {
+            "url": { "type": "string", "format": "uri", "maxLength": 2048 },
+            "name": { "type": "string", "maxLength": 64 },
+            "auto_update_hours": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "app.profile.update": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": { "type": "string" },
+            "url": { "type": "string", "format": "uri" },
+            "name": { "type": "string", "maxLength": 64 },
+            "auto_update_hours": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "app.profile.remove": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string" } } },
+        "app.profile.select": {
+          "type": "object",
+          "description": "stage→reload 单事务，幂等",
+          "required": ["id"],
+          "properties": { "id": { "type": "string" } }
+        },
+        "app.profile.refresh": {
+          "type": "object",
+          "description": "拉取订阅。返回节点数变化",
+          "properties": { "id": { "type": "string" } }
+        },
+        "app.config.get": {
+          "type": "object",
+          "properties": { "section": { "enum": ["groups", "rules", "dns", "all"], "default": "all" } }
+        },
+        "app.config.patch": {
+          "type": "object",
+          "description": "JSON Merge Patch，作用于 agent overlay（落在现有 OverridePatch 存储上）。必须带 base_rev",
+          "required": ["base_rev", "patch"],
+          "properties": {
+            "base_rev": { "type": "integer", "minimum": 0 },
+            "patch": { "type": "object" },
+            "section": { "enum": ["groups", "rules", "dns", "all"], "default": "all" },
+            "dry_run": { "type": "boolean", "default": false }
+          }
+        },
+        "app.config.apply": {
+          "type": "object",
+          "description": "写配置并热重载。默认 confirm_within_s=60，超时未确认自动回滚到上一已确认 rev",
+          "required": ["rev"],
+          "properties": {
+            "rev": { "type": "integer", "minimum": 0 },
+            "confirm_within_s": { "type": "integer", "minimum": 10, "maximum": 600, "default": 60 }
+          }
+        },
+        "app.config.confirm": { "type": "object", "required": ["rev"], "properties": { "rev": { "type": "integer" } } },
+        "app.config.rollback": { "type": "object", "properties": { "rev": { "type": "integer" } } },
+        "app.pref.set": {
+          "type": "object",
+          "description": "隧道未运行时持久化，出站模式/分组选择。返回 deferred",
+          "properties": {
+            "mode": { "enum": ["rule", "global", "direct"] },
+            "selections": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
+        },
+        "app.audit.tail": {
+          "type": "object",
+          "properties": { "n": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 } }
+        }
+      }
+    },
+    "coreOps": {
+      "type": "object",
+      "description": "EC 命令。需要隧道；全部映射现有内核能力，Go 内核零改动",
+      "additionalProperties": false,
+      "properties": {
+        "core.state.get": {
+          "type": "object",
+          "properties": {
+            "mode": { "enum": ["rule", "global", "direct"] },
+            "uptime_s": { "type": "integer" },
+            "mem_mb": { "type": "number" },
+            "mem_limit_mb": { "type": "number" },
+            "epoch": { "type": "integer" }
+          }
+        },
+        "core.proxy.list": {
+          "type": "object",
+          "properties": {
+            "group": { "type": "string" },
+            "with_latency": { "type": "boolean", "default": false },
+            "cursor": { "type": ["string", "null"] },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+          }
+        },
+        "core.proxy.select": {
+          "type": "object",
+          "description": "目标态，幂等。返回 previous",
+          "required": ["group", "node"],
+          "properties": { "group": { "type": "string" }, "node": { "type": "string" } }
+        },
+        "core.proxy.delay": {
+          "type": "object",
+          "description": "并发上限 8",
+          "required": ["targets"],
+          "properties": {
+            "targets": { "type": "array", "minItems": 1, "maxItems": 200, "items": { "type": "string" } },
+            "url": { "type": "string", "format": "uri" },
+            "timeout_ms": { "type": "integer", "minimum": 100, "maximum": 10000, "default": 5000 }
+          }
+        },
+        "core.mode.set": {
+          "type": "object",
+          "description": "目标态，幂等。返回 previous",
+          "required": ["mode"],
+          "properties": { "mode": { "enum": ["rule", "global", "direct"] } }
+        },
+        "core.conn.list": {
+          "type": "object",
+          "properties": {
+            "filter": {
+              "type": "object",
+              "properties": {
+                "host": { "type": "string" },
+                "rule": { "type": "string" },
+                "node": { "type": "string" }
+              }
+            },
+            "cursor": { "type": ["string", "null"] },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+          }
+        },
+        "core.conn.close": {
+          "type": "object",
+          "description": "已关闭返回 closed:0，安全非幂等",
+          "properties": {
+            "id": { "type": "string" },
+            "filter": { "type": "object" },
+            "all": { "type": "boolean", "default": false }
+          }
+        },
+        "core.rules.list": {
+          "type": "object",
+          "properties": { "cursor": { "type": ["string", "null"] }, "limit": { "type": "integer", "maximum": 200, "default": 50 } }
+        },
+        "core.provider.update": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } } },
+        "core.dns.query": {
+          "type": "object",
+          "required": ["name"],
+          "properties": { "name": { "type": "string" }, "type": { "enum": ["A", "AAAA", "CNAME", "TXT", "MX", "HTTPS"], "default": "A" } }
+        },
+        "core.probe": {
+          "type": "object",
+          "description": "经隧道出站探测，用于健康检查与出口验证（替代新增内核路由）",
+          "required": ["urls"],
+          "properties": {
+            "urls": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "type": "string", "format": "uri" } }
+          }
+        },
+        "core.log.tail": {
+          "type": "object",
+          "description": "已脱敏",
+          "properties": {
+            "level": { "enum": ["debug", "info", "warn", "error"] },
+            "n": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+          }
+        },
+        "core.config.reload": {
+          "type": "object",
+          "description": "成功后 epoch+1",
+          "required": ["rev"],
+          "properties": { "rev": { "type": "integer", "minimum": 0 } }
+        }
+      }
+    }
+  }
+}
