@@ -122,7 +122,7 @@ test('pairing：hello 的 ext 必须带 session_epoch（app 则不应带）', ()
 test('ops：合法命令全部通过且 op 命名空间合法', () => {
   const defs = { app: opsSchema.$defs.appOps, ext: opsSchema.$defs.coreOps }
   for (const v of vectors.vectors.opsValid) {
-    const props = defs[v.ch].properties as Record<string, object>
+    const props = defs[v.ch as keyof typeof defs].properties as Record<string, object>
     assert.ok(props[v.op], `${v.ch} 通道不应有未知 op：${v.op}`)
     // op 本身合法后，再单独校验它的 args
     const argsValidator = ajv.compile({ ...props[v.op] } as object)
@@ -137,7 +137,7 @@ test('ops：合法命令全部通过且 op 命名空间合法', () => {
 test('ops：非法命令全部被拒', () => {
   const defs = { app: opsSchema.$defs.appOps, ext: opsSchema.$defs.coreOps }
   for (const v of vectors.vectors.opsInvalid) {
-    const props = defs[v.ch].properties as Record<string, object>
+    const props = defs[v.ch as keyof typeof defs].properties as Record<string, object>
     // 两种非法形态：op 不存在，或 op 存在但参数不合法
     const opKnown = Boolean(props[v.op])
     const argsValidator = opKnown

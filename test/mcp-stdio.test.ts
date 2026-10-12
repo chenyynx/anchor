@@ -125,4 +125,4 @@ test('MCP stdio：initialize → tools/list（13 工具）→ tools/call', async
   } finally {
     c.close()
   }
-}, { timeout: 60000 })
+})

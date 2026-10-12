@@ -198,7 +198,7 @@ export class OutboundQueue {
       .prepare(
         'SELECT * FROM commands WHERE dev_id = ? ORDER BY created_at DESC, id DESC LIMIT ?',
       )
-      .all(devId, limit) as Row[]
+      .all(devId, limit) as unknown as Row[]
     return rows.map(toItem)
   }
 

@@ -102,7 +102,7 @@ export class Registry {
   list(): DeviceRecord[] {
     const rows = this.db
       .prepare('SELECT * FROM devices ORDER BY created_at, dev_id')
-      .all() as Row[]
+      .all() as unknown as Row[]
     return rows.map(toRecord)
   }
 

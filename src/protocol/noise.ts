@@ -123,8 +123,8 @@ class SymmetricState {
     const [t1, t2] = hkdf(this.ck, Buffer.alloc(0))
     const c1 = new CipherState()
     const c2 = new CipherState()
-    c1.initializeKey(t1)
-    c2.initializeKey(t2)
+    c1.initializeKey(Buffer.from(t1))
+    c2.initializeKey(Buffer.from(t2))
     return { c1, c2 }
   }
 }

@@ -9,7 +9,6 @@ import { Daemon } from '../src/daemon/daemon'
 import { MockPhone } from '../tools/mock-phone'
 import { generateDH } from '../src/protocol/noise'
 import { deviceIdFromPub } from '../src/lib/ids'
-import WebSocket from 'ws'
 import { generateDH as genDH, NoiseXX } from '../src/protocol/noise'
 
 const freePort = (): number => 18700 + Math.floor(Math.random() * 300)
@@ -30,7 +29,7 @@ test('e2e：配对 → hello → 命令往返 → 幂等/TTL 生效', async () =
     const pairRes = await phone.pair(uri)
     assert.equal(pairRes.status, 'accepted')
     assert.equal(pairRes.controller, true, '首台设备成为主控')
-    assert.ok(String(pairRes.agent?.id).length === 16)
+    assert.ok(String((pairRes.agent as { id?: string })?.id).length === 16)
     phone.close()
 
     // ② 日常会话：hello
