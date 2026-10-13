@@ -101,7 +101,8 @@ test('MCP stdio：initialize → tools/list（13 工具）→ tools/call', { tim
       capabilities: {},
       clientInfo: { name: 'test-client', version: '0.0.0' },
     })
-    assert.equal(init.result?.serverInfo?.name, 'anchor')
+    const si = init.result?.serverInfo as { name?: string } | undefined
+    assert.equal(si?.name, 'anchor')
     c.notify('notifications/initialized', {})
 
     // tools/list

@@ -31,10 +31,12 @@ export const hkdf = (ck: Buffer, ikm: Buffer, outLen = 2): Buffer[] => {
   const outs: Buffer[] = []
   let prev = Buffer.alloc(0)
   for (let i = 1; i <= outLen; i++) {
-    prev = createHmac('sha256', prk)
-      .update(Buffer.concat([prev, Buffer.alloc(0)]))
-      .update(Buffer.of(i))
-      .digest()
+    prev = Buffer.from(
+      createHmac('sha256', prk)
+        .update(Buffer.concat([prev, Buffer.alloc(0)]))
+        .update(Buffer.of(i))
+        .digest(),
+    )
     outs.push(prev)
   }
   return outs
@@ -99,8 +101,8 @@ class SymmetricState {
 
   mixKey(ikm: Buffer): void {
     const [newCk, tempK] = hkdf(this.ck, ikm)
-    this.ck = newCk
-    this.cs.initializeKey(tempK)
+    this.ck = Buffer.from(newCk)
+    this.cs.initializeKey(Buffer.from(tempK))
   }
 
   mixHash(data: Buffer): void {

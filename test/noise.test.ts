@@ -41,7 +41,7 @@ const handshake = () => {
   return { dev, agent }
 }
 
-test('noise：XX 握手三消息互通', handshake)
+test('noise：XX 握手三消息互通', () => { handshake() })
 
 test('noise：传输阶段双向加解密往返', () => {
   const { dev, agent } = handshake()
