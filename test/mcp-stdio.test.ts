@@ -91,7 +91,7 @@ class McpClient {
   }
 }
 
-test('MCP stdio：initialize → tools/list（13 工具）→ tools/call', { timeout: 90000 }, async () => {
+test('MCP stdio：initialize → tools/list（13 工具）→ tools/call', { timeout: 90000, skip: process.env.ANCHOR_SKIP_SPAWN === '1' }, async () => {
   const home = mkdtempSync(join(tmpdir(), 'hako-mcp-'))
   const c = new McpClient({ ANCHOR_HOME: home })
   try {

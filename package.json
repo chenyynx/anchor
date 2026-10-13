@@ -12,10 +12,11 @@
   },
   "scripts": {
     "dev": "tsx src/cli.ts",
-    "test": "tsx --test --test-concurrency=1 test/*.test.ts",
+    "test": "ANCHOR_SKIP_SPAWN=1 tsx --test --test-concurrency=1 test/*.test.ts",
     "contract": "tsx --test test/contract.test.ts",
     "mock-phone": "tsx tools/mock-phone.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:full": "tsx --test --test-concurrency=1 test/*.test.ts"
   },
   "workspaces": [
     "packages/hako-protocol"
