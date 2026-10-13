@@ -150,7 +150,7 @@ export class Daemon {
           devId,
           pub: dev.pub,
           alias: dev.alias,
-          roles: JSON.parse(dev.roles) as unknown as string,
+          roles: JSON.parse(dev.roles) as string[],
           scopes: dev.scopes,
           apns: {
             token: String(apns.token),
