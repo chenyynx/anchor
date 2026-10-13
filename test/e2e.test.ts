@@ -121,8 +121,11 @@ test('e2e：命令下发→设备应答→结算（会话内推送）', async ()
     const uri2 = daemon.openPairing([`ws://127.0.0.1:${port}/ws`])
     await phone2.pair(uri2)
     const helloRes = await phone2.hello()
+    phone2.installAutoResponder()
     assert.equal(helloRes.pending, 0, '补发后 pending 应清零')
+    await new Promise((r) => setTimeout(r, 300))
     phone2.close()
+    await new Promise((r) => setTimeout(r, 100))
   } finally {
     daemon.close()
   }
