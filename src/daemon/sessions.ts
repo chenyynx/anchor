@@ -14,6 +14,8 @@ export interface PushResult {
 export class SessionManager {
   /** dev_id → 在线会话（同一设备重复 hello 时顶替旧会话） */
   #sessions = new Map<string, WireSession>()
+  /** P4：设备不在线时的唤醒钩子（daemon 注入 WakeClient） */
+  wakeHook?: (devId: string) => void
 
   constructor(
     private readonly queue: OutboundQueue,
@@ -78,7 +80,14 @@ export class SessionManager {
   submit(input: Parameters<OutboundQueue['enqueue']>[0]): { ok: boolean; duplicate?: boolean; id: string } {
     const enq = this.queue.enqueue(input)
     const dev = this.registry.get(input.devId)
-    if (enq.ok && dev && dev.revoked_at === null) this.flush(input.devId)
+    if (enq.ok && dev && dev.revoked_at === null) {
+      if (this.isOnline(input.devId)) {
+        this.flush(input.devId)
+      } else {
+        // P4：离线设备——命令留在队列，尝试经 Wake Gateway 静默推送拉起
+        this.wakeHook?.(input.devId)
+      }
+    }
     return { ok: enq.ok, duplicate: enq.duplicate, id: enq.item.id }
   }
 
@@ -88,6 +97,23 @@ export class SessionManager {
     if (!item) return false
     if (msg.t === 'ack') {
       this.log(`ack：${item.op}`)
+      return true
+    }
+    // P4 deferred 语义：设备「已接受但未生效」→ 命令重排回队首，等设备
+    // 下次可达（或唤醒后 hello 补发）再投递；重试次数计入 attempts，
+    // 超过上限按 rejected 终结（防永久循环）。
+    if (msg.status === 'deferred') {
+      if (item.attempts >= 5) {
+        this.log(`deferred 重试上限（${item.attempts} 次）：${item.op} 终结为 rejected`)
+        this.queue.settle(ref, {
+          ok: false,
+          status: 'rejected',
+          err: { code: 'DEFERRED_LIMIT', message: 'deferred 重试超限' },
+        })
+        return true
+      }
+      this.queue.requeue(ref)
+      this.log(`deferred：${item.op} 重排（第 ${item.attempts + 1} 次）`)
       return true
     }
     this.queue.settle(ref, {

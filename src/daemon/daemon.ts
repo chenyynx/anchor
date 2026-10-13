@@ -13,6 +13,7 @@ import type { IncomingMessage } from 'node:http'
 import { openDb, type Db } from './db'
 import { Registry } from './registry'
 import { OutboundQueue } from './queue'
+import { WakeClient } from './wake'
 import { PairingWindows, b64url } from './pairing'
 import { SessionManager } from './sessions'
 import { createResponderSession, type WireSession } from './session'
@@ -28,6 +29,10 @@ export interface DaemonOptions {
   host?: string
   /** 状态变化通知（供 MCP 壳/CLI 展示） */
   onLog?: (line: string) => void
+  /** P4：本 daemon 的 agent_id（WakeClient 请求携带） */
+  agentId?: string
+  /** P4：Wake Gateway 配置；缺省 = 不启用唤醒 */
+  wake?: { gatewayUrl: string; secret?: string }
 }
 
 export class Daemon {
@@ -46,6 +51,16 @@ export class Daemon {
     this.sessions = new SessionManager(this.queue, this.registry, o.onLog ?? (() => {}))
     this.#staticKey = o.staticKey
     this.#log = o.onLog ?? ((l) => console.log(l))
+    // P4：离线设备唤醒（gatewayUrl 未配置时 WakeClient 为 no-op）
+    if (o.wake) {
+      const client = new WakeClient({ ...o.wake, agentId: o.agentId ?? 'agent_unknown', log: this.#log })
+      this.sessions.wakeHook = (devId: string) => {
+        const dev = this.registry.get(devId)
+        if (dev?.apns_token) {
+          void client.wakeDevice(devId, { token: dev.apns_token, topic: dev.apns_topic ?? undefined })
+        }
+      }
+    }
   }
 
   /** 打开一个配对窗口，返回口令 URI */
@@ -122,6 +137,22 @@ export class Daemon {
         return
       }
       this.registry.touch(devId)
+      // P4：设备上线时顺带上报最新 APNs token（token 会随重装/系统更新变化）
+      const apns = (msg.apns ?? null) as Record<string, unknown> | null
+      if (apns && typeof apns.token === 'string' && apns.token.length > 0) {
+        this.registry.upsert({
+          devId,
+          pub: dev.pub,
+          alias: dev.alias,
+          roles: JSON.parse(dev.roles) as string[],
+          scopes: dev.scopes,
+          apns: {
+            token: String(apns.token),
+            env: apns.env === 'sandbox' ? 'sandbox' : 'prod',
+            topic: typeof apns.topic === 'string' ? apns.topic : undefined,
+          },
+        })
+      }
       this.sessions.online(devId, session)
       const pending = this.queue.pendingCount(devId)
       session.send({

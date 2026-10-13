@@ -171,6 +171,22 @@ export class OutboundQueue {
     return this.get(id)
   }
 
+  /**
+   * P4：deferred 重排——命令回到 queued（原 id/idem 不变）。attempts 不再
+   * 额外 +1：markSent 投递时已计数，上限判定用它即可。
+   */
+  requeue(id: string, now = Date.now()): QueueItem | null {
+    const item = this.get(id)
+    if (!item || item.state !== 'sent') return null
+    this.db
+      .prepare(
+        `UPDATE commands SET state = 'queued', sent_at = NULL, settled_at = NULL,
+         result = NULL, err = NULL, created_at = ? WHERE id = ?`,
+      )
+      .run(now, id)
+    return this.get(id)
+  }
+
   /** 清扫过期（queued/sent 且超出 TTL），返回条数 */
   expire(now = Date.now()): number {
     const r = this.db
