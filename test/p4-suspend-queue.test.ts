@@ -7,8 +7,8 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { openDb, type Db } from '../src/daemon/db.ts'
-import { Daemon } from '../src/daemon/daemon.ts'
+import { openDb, type Db } from '../src/daemon/db'
+import { Daemon } from '../src/daemon/daemon'
 import { generateDH } from '../src/protocol/noise'
 
 function freshDaemon(wake?: { gatewayUrl: string }) {

@@ -6,7 +6,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createHmac } from 'node:crypto'
 import http from 'node:http'
-import { WakeClient } from '../src/daemon/wake.ts'
+import { WakeClient } from '../src/daemon/wake'
 
 test('wake disabled when gatewayUrl empty', async () => {
   const c = new WakeClient({ agentId: 'agent_x', agentPubHex: 'ab', log: () => {} })
