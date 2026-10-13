@@ -53,7 +53,13 @@ export class Daemon {
     this.#log = o.onLog ?? ((l) => console.log(l))
     // P4：离线设备唤醒（gatewayUrl 未配置时 WakeClient 为 no-op）
     if (o.wake) {
-      const client = new WakeClient({ ...o.wake, agentId: o.agentId ?? 'agent_unknown', log: this.#log })
+      const client = new WakeClient({
+        gatewayUrl: o.wake.gatewayUrl,
+        secret: o.wake.secret,
+        agentId: o.agentId ?? 'agent_unknown',
+        agentPubHex: this.#staticKey.pub.toString('hex'),
+        log: this.#log,
+      })
       this.sessions.wakeHook = (devId: string) => {
         const dev = this.registry.get(devId)
         if (dev?.apns_token) {
